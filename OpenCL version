@@ -1,0 +1,77 @@
+#include <stdio.h>
+#include <stdlib.h>
+#include <math.h>
+#include <CL/cl.h>
+
+#define DIMENSION 2
+#define MAX_ITERATIONS 100
+
+typedef struct {
+    double coords[DIMENSION];
+} Point;
+
+double distance_squared(Point p1, Point p2) {
+    double sum = 0;
+    for (int i = 0; i < DIMENSION; i++) {
+        double diff = p1.coords[i] - p2.coords[i];
+        sum += diff * diff;
+    }
+    return sum;
+}
+
+int main() {
+  
+    int num_points = 1000;
+    int num_centroids = 4;
+    Point* points;
+    Point* centroids;
+    int* assignments;
+
+    // Step 1: Set up OpenCL environment
+    cl_int err;
+    cl_platform_id platform;
+    cl_device_id device;
+    cl_context context;
+    cl_command_queue queue;
+    cl_program program;
+    cl_kernel kernel;
+
+    // Step 2: Load and compile kernel code
+    const char* kernel_source = "kernel code for K-Means clustering";
+    program = clCreateProgramWithSource(context, 1, &kernel_source, NULL, &err);
+    err = clBuildProgram(program, 0, NULL, NULL, NULL, NULL);
+    kernel = clCreateKernel(program, "kmeans_kernel", &err);
+
+    // Step 3: Allocate memory and transfer data
+    cl_mem points_buffer = clCreateBuffer(context, CL_MEM_READ_ONLY, num_points * sizeof(Point), NULL, &err);
+    cl_mem centroids_buffer = clCreateBuffer(context, CL_MEM_READ_WRITE, num_centroids * sizeof(Point), NULL, &err);
+    cl_mem assignments_buffer = clCreateBuffer(context, CL_MEM_READ_WRITE, num_points * sizeof(int), NULL, &err);
+    err = clEnqueueWriteBuffer(queue, points_buffer, CL_TRUE, 0, num_points * sizeof(Point), points, 0, NULL, NULL);
+    err = clEnqueueWriteBuffer(queue, centroids_buffer, CL_TRUE, 0, num_centroids * sizeof(Point), centroids, 0, NULL, NULL);
+
+    // Step 4: Execute kernel
+    err = clSetKernelArg(kernel, 0, sizeof(cl_mem), &points_buffer);
+    err = clSetKernelArg(kernel, 1, sizeof(cl_mem), &centroids_buffer);
+    err = clSetKernelArg(kernel, 2, sizeof(cl_mem), &assignments_buffer);
+    err = clSetKernelArg(kernel, 3, sizeof(cl_int), &num_points);
+    err = clSetKernelArg(kernel, 4, sizeof(cl_int), &num_centroids);
+    err = clEnqueueNDRangeKernel(queue, kernel, 1, NULL, &num_points, NULL, 0, NULL, NULL);
+
+    // Step 5: Retrieve results
+    err = clEnqueueReadBuffer(queue, centroids_buffer, CL_TRUE, 0, num_centroids * sizeof(Point), centroids, 0, NULL, NULL);
+    err = clEnqueueReadBuffer(queue, assignments_buffer, CL_TRUE, 0, num_points * sizeof(int), assignments, 0, NULL, NULL);
+
+    // Step 6: Clean up resources
+    clReleaseMemObject(points_buffer);
+    clReleaseMemObject(centroids_buffer);
+    clReleaseMemObject(assignments_buffer);
+    clReleaseKernel(kernel);
+    clReleaseProgram(program);
+    clReleaseCommandQueue(queue);
+    clReleaseContext(context);
+
+    printf("\nResults:\n");
+
+    printf("\n");
+    return 0;
+}
